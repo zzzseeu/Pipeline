@@ -6,14 +6,15 @@ import sys
 from concurrent.futures import ProcessPoolExecutor
 
 import pysam
+
 from utils import *
 
 GENOME = '/home/xinzhou/GENOME/database'
 
 
 @log
-def fastqc(outdir, sample, thread, R1_read, R2_read):
-    fqdir = f'{outdir}/{sample}/01.fastqc'
+def fastqc(outdir, thread, R1_read, R2_read):
+    fqdir = f'{outdir}/01.fastqc'
     check_dir(fqdir)
     if R2_read != 'None':
         string = f'{R2_read}'
@@ -29,11 +30,12 @@ def fastqc(outdir, sample, thread, R1_read, R2_read):
 
 
 @log
-def multiqc(inputdir):
+def multiqc(inputdir, outdir):
     cmd = (
         f'multiqc --title Multiqc_report '
         f'-d -dd 1 --module fastqc '
         f'--filename multiqc_report.html '
+        f'-o {outdir} '
         f'{inputdir} '
     )
     multiqc.logger.info(cmd)
@@ -42,7 +44,7 @@ def multiqc(inputdir):
 
 @log
 def bowtie2(outdir, sample, thread, R1_read, R2_read, species):
-    bt2dir = f'{outdir}/{sample}/02.bowtie2'
+    bt2dir = f'{outdir}/02.mapping/{sample}'
     check_dir(bt2dir)
     if R2_read != 'None':
         string = f'-1 {R1_read} -2 {R2_read} '
@@ -51,13 +53,13 @@ def bowtie2(outdir, sample, thread, R1_read, R2_read, species):
     cmd = (
         f'bowtie2 -p {thread} --trim5 8 --local '
         f'-x {GENOME}/{species}/bowtie2_index/{species} '
-        f'{string}'
-        f'-S {bt2dir}/{sample}.sam; '
-        f'samtools flagstat {bt2dir}/{sample}.sam > {bt2dir}/{sample}.alignment.stats '
+        f'{string}| samtools view -bS - | samtools sort  -O bam -o {bt2dir}/{sample}.bam; '
+        f'samtools index {bt2dir}/{sample}.bam; '
+        f'samtools flagstat {bt2dir}/{sample}.bam > {bt2dir}/{sample}.alignment.stats '
     )
     bowtie2.logger.info(cmd)
     subprocess.check_call(cmd, shell=True)
-    process_bam(f'{bt2dir}/{sample}.sam')
+    # process_bam(f'{bt2dir}/{sample}.sam')
 
 
 @log
@@ -73,8 +75,8 @@ def get_mapped_reads(stat_file):
 
 @log
 def calculate_mapping_rate(outdir):
-    stats = glob(f'{outdir}/*/02.bowtie2/*.alignment.stats')
-    alignment_stat = open(f'{outdir}/alignment_summary.txt', 'w')
+    stats = glob(f'{outdir}/02.mapping/*/*.alignment.stats')
+    alignment_stat = open(f'{outdir}/02.mapping/alignment_summary.txt', 'w')
     for i in stats:
         sample = i.split('/')[-1].split('.')[0]
         all_reads, mapped_reads = get_mapped_reads(i)
@@ -122,19 +124,19 @@ def calculate_mapping_rate(outdir):
 
 @log
 def normalize(outdir, sample, bam, extend_size, species):
-    prefix = f'{outdir}/{sample}/03.normalize'
+    prefix = f'{outdir}/02.mapping/{sample}'
     check_dir(prefix)
-    stat_file = f'{outdir}/{sample}/02.bowtie2/{sample}.alignment.stats'
+    stat_file = f'{outdir}/02.mapping/{sample}/{sample}.alignment.stats'
     all_reads, mapped_reads = get_mapped_reads(stat_file)
     scale = 1000000 / mapped_reads
     scale = format(scale, '.3f')
     cmd = (
         f'macs2 pileup -f BAM --extsize {extend_size} -i {bam} -o {prefix}/{sample}.bdg; '
-        f'macs2 bdgopt -i {prefix}/{sample}.bdg -m multiply -p {scale} -o {prefix}/temp_normalized.bdg; '
-        f'sed -n \'2,$p\' {prefix}/temp_normalized.bdg > {prefix}/{sample}.bdg; '
-        f'rm {prefix}/temp_normalized.bdg; '
-        f'bedSort {prefix}/{sample}.bdg {prefix}/{sample}.sorted.bdg; '
-        f'bedGraphToBigWig {prefix}/{sample}.sorted.bdg {GENOME}/{species}/reference/genome.size {prefix}/{sample}_normalized.bw '
+        f'macs2 bdgopt -i {prefix}/{sample}.bdg -m multiply -p {scale} -o {prefix}/{sample}_temp_normalized.bdg; '
+        f'sed -n \'2,$p\' {prefix}/{sample}_temp_normalized.bdg > {prefix}/{sample}.bdg; '
+        f'rm {prefix}/{sample}_temp_normalized.bdg; '
+        f'bedSort {prefix}/{sample}.bdg {prefix}/{sample}.bdg; '
+        f'bedGraphToBigWig {prefix}/{sample}.bdg {GENOME}/{species}/reference/genome.size {prefix}/{sample}.bw '
     )
     normalize.logger.info(cmd)
     subprocess.check_call(cmd, shell=True)
@@ -143,9 +145,9 @@ def normalize(outdir, sample, bam, extend_size, species):
 @log
 def process(outdir, sample, thread, R1_read, R2_read, 
             species, extend_size):
-        fastqc(outdir, sample, thread, R1_read, R2_read)
+        fastqc(outdir, thread, R1_read, R2_read)
         bowtie2(outdir, sample, thread, R1_read, R2_read, species)
-        bam = f'{outdir}/{sample}/02.bowtie2/{sample}.sorted.bam'
+        bam = f'{outdir}/02.mapping/{sample}/{sample}.bam'
         normalize(outdir, sample, bam, extend_size, species)
         # effectiveGenomeSize = count_effective_genome(species)
         # bamCoverage(bam, outdir, sample, thread, scaleFactor, normalizemethod, effectiveGenomeSize, ignoreForNormalization)
@@ -178,7 +180,7 @@ def run_process(args):
         for i in pool.map(process, outdirs, samples, threads, R1_read, R2_read, species, 
                         extend_size):
             run_pools.append(i)
-    multiqc(args.outdir)
+    multiqc(args.outdir, f'{args.outdir}/01.fastqc/multiqc')
     calculate_mapping_rate(args.outdir)
 
 
