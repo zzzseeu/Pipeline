@@ -149,8 +149,6 @@ def process(outdir, sample, thread, R1_read, R2_read,
         bowtie2(outdir, sample, thread, R1_read, R2_read, species)
         bam = f'{outdir}/02.mapping/{sample}/{sample}.bam'
         normalize(outdir, sample, bam, extend_size, species)
-        # effectiveGenomeSize = count_effective_genome(species)
-        # bamCoverage(bam, outdir, sample, thread, scaleFactor, normalizemethod, effectiveGenomeSize, ignoreForNormalization)
 
 
 def run_process(args):
@@ -166,9 +164,7 @@ def run_process(args):
     outdirs = [args.outdir] * len(samples)
     threads = [args.thread] * len(samples)
     extend_size = [args.extend_size] * len(samples)
-    # scaleFactor = [args.scaleFactor] * len(samples)
-    # normalizemethod = [args.normalizemethod] * len(samples)
-    # ignoreForNormalization = [args.ignoreForNormalization] * len(samples)
+
     # define cores
     if len(samples) < 6:
         cores = len(samples)
@@ -201,16 +197,6 @@ def get_args():
     parser.add_argument('--extend_size', 
                         help='The extension size in bps. Each alignment read will become a EXTSIZE of fragment, then be piled up. Check description for -B for detail.', 
                         default=200)
-    # parser.add_argument('--scaleFactor', 
-    #                     help='The computed scaling factor (or 1, if not applicable) will be multiplied by this.', 
-    #                     default=1.0)
-    # parser.add_argument('--normalizemethod', 
-    #                     help='Use one of the entered methods to normalize the number of reads per bin. ', 
-    #                     choices=['RPKM','CPM','BPM','RPGC','None'], 
-    #                     default='RPKM')
-    # parser.add_argument('--ignoreForNormalization', 
-    #                     help='A list of space-delimited chromosome names containing those chromosomes that should be excluded for computing the normalization. An usage examples is --ignoreForNormalization chrX chrM.', 
-    #                     default='None')
     args = parser.parse_args()
     return args
 
