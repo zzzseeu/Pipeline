@@ -86,42 +86,6 @@ def calculate_mapping_rate(outdir):
     alignment_stat.close()
 
 
-# @log
-# def bamCoverage(bam, outdir, sample, thread, scaleFactor, normalizemethod, effectiveGenomeSize, ignoreForNormalization):
-#     prefix = f'{outdir}/{sample}/03.deeptools'
-#     check_dir(prefix)
-#     cmd = (
-#         f'bamCoverage --bam {bam} '
-#         f'--binSize 50 '
-#         f'--scaleFactor {scaleFactor} '
-#         f'--normalizeUsing {normalizemethod}  '
-#         f'--effectiveGenomeSize {effectiveGenomeSize} '
-#         f'--ignoreForNormalization {ignoreForNormalization} '
-#         f'--extendReads 200 '
-#         f'-p {thread} '
-#         f'-o {prefix}/{sample}.bw '
-#         f'--outFileFormat bigwig '
-#     )
-#     bamCoverage.logger.info(cmd)
-#     subprocess.check_call(cmd, shell=True)
-
-
-# @log
-# def count_effective_genome(species):
-#     fasta = f'{GENOME}/{species}/reference/{species}.fasta'
-#     fa = pysam.FastxFile(fasta)
-#     A, T, C, G = 0, 0, 0, 0
-#     for entry in fa:
-#         sequence = entry.sequence
-#         a, t, c, g = sequence.count('A'), sequence.count('T'), sequence.count('C'), sequence.count('G')
-#         A += a
-#         T += t
-#         C += c
-#         G += g
-#     genome_size = A+T+C+G
-#     return genome_size
-
-
 @log
 def normalize(outdir, sample, bam, extend_size, species):
     prefix = f'{outdir}/02.mapping/{sample}'
