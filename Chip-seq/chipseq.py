@@ -109,10 +109,10 @@ def normalize(outdir, sample, bam, extend_size, species):
 @log
 def process(outdir, sample, thread, R1_read, R2_read, 
             species, extend_size):
-        fastqc(outdir, thread, R1_read, R2_read)
-        bowtie2(outdir, sample, thread, R1_read, R2_read, species)
-        bam = f'{outdir}/02.mapping/{sample}/{sample}.bam'
-        normalize(outdir, sample, bam, extend_size, species)
+    fastqc(outdir, thread, R1_read, R2_read)
+    bowtie2(outdir, sample, thread, R1_read, R2_read, species)
+    bam = f'{outdir}/02.mapping/{sample}/{sample}.bam'
+    normalize(outdir, sample, bam, extend_size, species)
 
 
 def run_process(args):
@@ -124,7 +124,7 @@ def run_process(args):
         R2_read = [samples_dict[i]['R2'] for i in samples]
     else:
         R2_read = ['None'] * len(samples)
-    species = [samples_dict[i]['species'] for i in samples]
+    species = [args.species] * len(samples)
     outdirs = [args.outdir] * len(samples)
     threads = [args.thread] * len(samples)
     extend_size = [args.extend_size] * len(samples)
@@ -147,8 +147,10 @@ def run_process(args):
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--mapfile', 
-                        help='Mapfile, which includes 3 columns. 1st column is sample name, 2nd column is fastq file path, 3rd column is species', 
+                        help='Mapfile, which includes 3 columns. 1st column is sample name, 2nd column is fastq file path', 
                         required=True)
+    parser.add_argument('--species', 
+                        help='Species', required=True)
     parser.add_argument('--outdir', 
                         help='Output directory, which should includes fastqc, bowtie2, multiqc and bamCoverage results.', 
                         default='./')

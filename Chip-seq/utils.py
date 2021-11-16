@@ -1,14 +1,16 @@
-import pysam
-import pandas as pd
+import itertools
+import logging
+import os
 import subprocess
 import sys
-import os
-import logging
 import time
+from collections import defaultdict
 from datetime import timedelta
 from functools import wraps
-from collections import defaultdict
-from glob import glob
+import glob
+
+import pandas as pd
+import pysam
 
 
 def log(func):
@@ -49,64 +51,79 @@ def parse_mapfile(mapfile):
     """
     Feature
     - Parse mapfile to dict.
-
     Input
-    - Mapfile. Four columns, 1st col is sample name, 2nd col is Fastq data path, 3rd col is species.
-
+    - Mapfile. Four columns, 1st col is sample name, 2nd col is Fastq data path.
     Output
-    - Samples_dict. Key: sample, value: {'path': path/to/fastq, 'species': species}.
-
+    - Samples_dict. Key: sample, value: {'path': path/to/fastq}.
     """
     df = pd.read_csv(mapfile, sep='\t', header=None, index_col=0)
     samples = df.index.tolist()
     samples_dict = defaultdict(dict)
     for sample in samples:
         path = df.loc[sample, 1]
-        species = df.loc[sample, 2]
         samples_dict[sample]['path'] = path
-        samples_dict[sample]['species'] = species
     return samples_dict
+
+
+def get_read(library_id, library_path, read='1'):
+    read1_list = [f'_{read}', f'R{read}', f'R{read}_001']
+    fq_list = ['fq', 'fastq']
+    suffix_list = ["", ".gz"]
+    read_pattern_list = [
+        f'{library_path}/*{library_id}*{read}.{fq_str}{suffix}' 
+        for read in read1_list 
+        for fq_str in fq_list 
+        for suffix in suffix_list
+    ]
+    fq_list = [glob.glob(read1_pattern) for read1_pattern in read_pattern_list]
+    fq_list = sorted(non_empty for non_empty in fq_list if non_empty)
+    fq_list = list(itertools.chain(*fq_list))
+    if len(fq_list) == 0:
+        print("Allowed R1 patterns:")
+        for pattern in read_pattern_list:
+            print(pattern)
+        raise Exception(
+            '\n'
+            f'Invalid Read{read} path! \n'
+            f'library_id: {library_id}\n'
+            f'library_path: {library_path}\n'
+        )
+    return fq_list
 
 
 def get_fq(samples_dict, paired_end):
     """
     Feature
     - Get fastq path.
-
     Input
-    - Samples_dict. Key: sample, value: {'path': path/to/fastq, 'species': species}.
-
+    - Samples_dict. Key: sample, value: {'path': path/to/fastq}.
     Output
-    - Samples_dict. Key: sample, value: {'path': path/to/fastq, 'species': species, 
-                                        'R1': full_path/to/R1 read, 'R2': full_path/to/R2 read}.
-
+    - Samples_dict. Key: sample, value: {'path': path/to/fastq,
+                                        'R1': full_path/to/R1 read, 
+                                        'R2': full_path/to/R2 read}.
     """
+    # define read pattern
     for sample in samples_dict:
         path = samples_dict[sample]['path']
-        if glob(f'{path}/{sample}*R1.fastq.gz'):
-            R1_read = glob(f'{path}/{sample}*R1.fastq.gz')[0]
-            samples_dict[sample]['R1'] = R1_read
-        else:
-            raise Exception('Invalid path to R1 read!')
+        fq1_list = get_read(sample, path)
+        samples_dict[sample]['R1'] = fq1_list[0]
         if paired_end:
-            if glob(f'{path}/{sample}*R2.fastq.gz'):
-                R2_read = glob(f'{path}/{sample}*R2.fastq.gz')[0]
-                samples_dict[sample]['R2'] = R2_read
-            else:
-                raise Exception('Invalid path to R2 read!')
+            fq2_list = get_read(sample, path, '2')
+            samples_dict[sample]['R2'] = fq2_list[0]
 
     return samples_dict
 
 
 def check_dir(dir):
-    """Check
+    """
+    Check directory path. If directory is not exists, will automatically make directory.
     """
     if not os.path.exists(dir):
         os.makedirs(dir)
 
 
 @log
-def process_bam(sam):
+def process_sam(sam):
     prefix = sam.rstrip('.sam')
     cmd = (
         f'samtools view -S {sam} -b > {prefix}.bam; '
@@ -114,5 +131,5 @@ def process_bam(sam):
         f'samtools index {prefix}.sorted.bam; '
         f'rm {sam} '
     )
-    process_bam.logger.info(cmd)
+    process_sam.logger.info(cmd)
     subprocess.check_call(cmd, shell=True)
