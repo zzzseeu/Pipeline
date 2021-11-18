@@ -1,0 +1,6 @@
+/.idea/
+
+# Mac os system file
+.DS_Store
+
+/__pycache__/
