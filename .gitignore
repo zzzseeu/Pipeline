@@ -3,4 +3,7 @@
 # Mac os system file
 .DS_Store
 
-/__pycache__/
+*/__pycache__/
+
+# vscode
+.vscode
