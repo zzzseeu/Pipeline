@@ -66,11 +66,11 @@ def parse_mapfile(mapfile):
 
 
 def get_read(library_id, library_path, read='1'):
-    read1_list = [f'_{read}', f'R{read}', f'R{read}_001']
+    read1_list = [f'_{read}', f'_R{read}', f'_R{read}_001']
     fq_list = ['fq', 'fastq']
     suffix_list = ["", ".gz"]
     read_pattern_list = [
-        f'{library_path}/*{library_id}*{read}.{fq_str}{suffix}' 
+        f'{library_path}/*{library_id}{read}.{fq_str}{suffix}' 
         for read in read1_list 
         for fq_str in fq_list 
         for suffix in suffix_list
