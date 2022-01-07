@@ -4,12 +4,11 @@ import re
 import subprocess
 import sys
 from concurrent.futures import ProcessPoolExecutor
+from glob import glob
 
 import pysam
 
 from utils import *
-
-GENOME = '/home/xinzhou/GENOME/database'
 
 
 @log
@@ -43,7 +42,7 @@ def multiqc(inputdir, outdir):
 
 
 @log
-def bowtie2(outdir, sample, thread, R1_read, R2_read, species):
+def bowtie2(outdir, sample, genome_dir, thread, R1_read, R2_read, species):
     bt2dir = f'{outdir}/02.mapping/{sample}'
     check_dir(bt2dir)
     if R2_read != 'None':
@@ -52,7 +51,7 @@ def bowtie2(outdir, sample, thread, R1_read, R2_read, species):
         string = f'-U {R1_read} '
     cmd = (
         f'bowtie2 -p {thread} --trim5 8 --local '
-        f'-x {GENOME}/{species}/bowtie2_index/{species} '
+        f'-x {genome_dir}/{species}/{species} '
         f'{string}| samtools view -bS - | samtools sort  -O bam -o {bt2dir}/{sample}.bam; '
         f'samtools index {bt2dir}/{sample}.bam; '
         f'samtools flagstat {bt2dir}/{sample}.bam > {bt2dir}/{sample}.alignment.stats '
@@ -75,19 +74,18 @@ def get_mapped_reads(stat_file):
 
 @log
 def calculate_mapping_rate(outdir):
-    stats = glob(f'{outdir}/02.mapping/*/*.alignment.stats')
+    stats = glob.glob(f'{outdir}/02.mapping/*/*.alignment.stats')
     alignment_stat = open(f'{outdir}/02.mapping/alignment_summary.txt', 'w')
     for i in stats:
         sample = i.split('/')[-1].split('.')[0]
         all_reads, mapped_reads = get_mapped_reads(i)
-        mapped_rates = round(mapped_reads/all_reads, 4)
-        mapped_rates = float(mapped_rates * 100)
+        mapped_rates = round(100*mapped_reads/all_reads, 2)
         alignment_stat.write(f'{sample}\t{all_reads}\t{mapped_reads}\t{mapped_rates}%\n')
     alignment_stat.close()
 
 
 @log
-def normalize(outdir, sample, bam, extend_size, species):
+def normalize(outdir, sample, genome_dir, bam, extend_size, species):
     prefix = f'{outdir}/02.mapping/{sample}'
     check_dir(prefix)
     stat_file = f'{outdir}/02.mapping/{sample}/{sample}.alignment.stats'
@@ -100,19 +98,19 @@ def normalize(outdir, sample, bam, extend_size, species):
         f'sed -n \'2,$p\' {prefix}/{sample}_temp_normalized.bdg > {prefix}/{sample}.bdg; '
         f'rm {prefix}/{sample}_temp_normalized.bdg; '
         f'bedSort {prefix}/{sample}.bdg {prefix}/{sample}.bdg; '
-        f'bedGraphToBigWig {prefix}/{sample}.bdg {GENOME}/{species}/reference/genome.size {prefix}/{sample}.bw '
+        f'bedGraphToBigWig {prefix}/{sample}.bdg {genome_dir}/{species}/genome.size {prefix}/{sample}.bw '
     )
     normalize.logger.info(cmd)
     subprocess.check_call(cmd, shell=True)
 
 
 @log
-def process(outdir, sample, thread, R1_read, R2_read, 
+def process(outdir, sample, genome_dir, thread, R1_read, R2_read, 
             species, extend_size):
     fastqc(outdir, thread, R1_read, R2_read)
-    bowtie2(outdir, sample, thread, R1_read, R2_read, species)
+    bowtie2(outdir, sample, genome_dir, thread, R1_read, R2_read, species)
     bam = f'{outdir}/02.mapping/{sample}/{sample}.bam'
-    normalize(outdir, sample, bam, extend_size, species)
+    normalize(outdir, sample, genome_dir, bam, extend_size, species)
 
 
 def run_process(args):
@@ -128,6 +126,7 @@ def run_process(args):
     outdirs = [args.outdir] * len(samples)
     threads = [args.thread] * len(samples)
     extend_size = [args.extend_size] * len(samples)
+    genome_dirs = [args.genome_dir] * len(samples)
 
     # define cores
     if len(samples) < 6:
@@ -136,11 +135,11 @@ def run_process(args):
         cores = 5
     # run
     run_pools = []
-    with ProcessPoolExecutor(cores) as pool:
-        for i in pool.map(process, outdirs, samples, threads, R1_read, R2_read, species, 
-                        extend_size):
-            run_pools.append(i)
-    multiqc(args.outdir, f'{args.outdir}/01.fastqc/multiqc')
+    # with ProcessPoolExecutor(cores) as pool:
+    #     for i in pool.map(process, outdirs, samples, genome_dirs, threads, R1_read, R2_read, species, 
+    #                     extend_size):
+    #         run_pools.append(i)
+    # multiqc(args.outdir, f'{args.outdir}/01.fastqc/multiqc')
     calculate_mapping_rate(args.outdir)
 
 
@@ -151,6 +150,7 @@ def get_args():
                         required=True)
     parser.add_argument('--species', 
                         help='Species', required=True)
+    parser.add_argument('--genome_dir', help='Genome index directory', required=True)
     parser.add_argument('--outdir', 
                         help='Output directory, which should includes fastqc, bowtie2, multiqc and bamCoverage results.', 
                         default='./')
