@@ -31,8 +31,7 @@ def fastqc(outdir, thread, R1_read, R2_read):
 @log
 def multiqc(inputdir, outdir):
     cmd = (
-        f'multiqc --title Multiqc_report '
-        f'-d -dd 1 --module fastqc '
+        f'multiqc '
         f'--filename multiqc_report.html '
         f'-o {outdir} '
         f'{inputdir} '
@@ -127,7 +126,6 @@ def run_process(args):
     threads = [args.thread] * len(samples)
     extend_size = [args.extend_size] * len(samples)
     genome_dirs = [args.genome_dir] * len(samples)
-
     # define cores
     if len(samples) < 6:
         cores = len(samples)
@@ -135,11 +133,12 @@ def run_process(args):
         cores = 5
     # run
     run_pools = []
-    # with ProcessPoolExecutor(cores) as pool:
-    #     for i in pool.map(process, outdirs, samples, genome_dirs, threads, R1_read, R2_read, species, 
-    #                     extend_size):
-    #         run_pools.append(i)
-    # multiqc(args.outdir, f'{args.outdir}/01.fastqc/multiqc')
+    with ProcessPoolExecutor(cores) as pool:
+        for i in pool.map(process, outdirs, samples, genome_dirs, threads, R1_read, R2_read, species, 
+                        extend_size):
+            run_pools.append(i)
+    # calculate
+    multiqc(f'{args.outdir}/01.fastqc', f'{args.outdir}/01.fastqc/multiqc')
     calculate_mapping_rate(args.outdir)
 
 
