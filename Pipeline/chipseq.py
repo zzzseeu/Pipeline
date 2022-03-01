@@ -1,12 +1,8 @@
 import argparse
-import os
 import re
 import subprocess
-import sys
 from concurrent.futures import ProcessPoolExecutor
 from glob import glob
-
-import pysam
 
 from utils import *
 
