@@ -66,7 +66,7 @@ def parse_mapfile(mapfile):
 
 
 def get_read(library_id, library_path, read='1'):
-    read1_list = [f'_{read}', f'_R{read}', f'_R{read}_001']
+    read1_list = [f'_{read}', f'_R{read}', f'_R{read}_001', f'{read}']
     fq_list = ['fq', 'fastq']
     suffix_list = ["", ".gz"]
     read_pattern_list = [
